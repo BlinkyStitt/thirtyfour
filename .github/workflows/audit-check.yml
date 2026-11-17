@@ -9,6 +9,9 @@ on:
     paths:
       - '**/Cargo.toml'
       - '**/Cargo.lock'
+concurrency:
+  group: pr-ci-audit-check.yml-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 jobs:
   security_audit:
     runs-on: ubuntu-latest

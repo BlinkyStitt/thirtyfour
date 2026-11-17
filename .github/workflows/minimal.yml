@@ -3,6 +3,9 @@ on:
     branches: [main]
   pull_request:
 name: With dependencies at minimal versions
+concurrency:
+  group: pr-ci-minimal.yml-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
