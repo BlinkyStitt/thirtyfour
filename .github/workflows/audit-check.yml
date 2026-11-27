@@ -1,24 +1,64 @@
+---
 name: Security audit
-on:
-  push:
-    branches: [main]
-    paths:
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-  pull_request:
-    paths:
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
 concurrency:
   group: pr-ci-audit-check.yml-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 jobs:
+  ci_changes:
+    name: Select validation paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run_validation: "${{ steps.paths.outputs.run_validation }}"
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - id: paths
+      env:
+        GH_TOKEN: "${{ github.token }}"
+        CI_INCLUDE_PATHS: '["**/Cargo.toml","**/Cargo.lock"]'
+        CI_IGNORE_PATHS: "[]"
+      run: python3 .github/scripts/ci_changes.py
   security_audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-      - uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - uses: actions-rs/audit-check@v1
+      with:
+        token: "${{ secrets.GITHUB_TOKEN }}"
+    needs:
+    - ci_changes
+    if: "${{ needs.ci_changes.outputs.run_validation == 'true' }}"
+  ci_gate:
+    name: CI (audit-check.yml)
+    if: "${{ !cancelled() }}"
+    needs:
+    - ci_changes
+    - security_audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Verify validation contract
+      env:
+        CI_GATE_NEEDS: "${{ toJSON(needs) }}"
+        CI_EXPECTED_JOBS: '["security_audit"]'
+      run: |-
+        python3 -m unittest discover -s .github/scripts -p test_ci_contract.py
+        python3 .github/scripts/ci_gate.py
+'on':
+  push:
+    branches:
+    - main
+    paths:
+    - "**/Cargo.toml"
+    - "**/Cargo.lock"
+  pull_request: {}

@@ -8,6 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
+    name: Minimal dependency tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions-rs/toolchain@v1
